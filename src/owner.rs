@@ -1,4 +1,3 @@
-#[derive(Clone, Copy)]
 enum Owner {
     User,
     Group,

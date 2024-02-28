@@ -131,13 +131,13 @@ fn format_output(files: Vec<PathBuf>, long_option: bool, show_all: bool) {
             if long_option {
                 output_as_table(file_path, metadata);
             } else {
-                println!("{}", file_path.display());
+                print!("{}  ", file_path.display());
             }
         });
 }
 
 fn output_as_table(file_path: PathBuf, metadata: std::fs::Metadata) {
-    let mut table = Table::new("{:>}{:>} {:<} {:<} {:<} {:<} {:<} {:<}");
+    let mut table = Table::new("{:>}{:>} {:>} {:>} {:>} {:>} {:>} {:>}");
 
     let file_type = if metadata.is_dir() { 'd' } else { '-' };
     let user = get_user_by_uid(metadata.uid()).unwrap();
@@ -152,7 +152,7 @@ fn output_as_table(file_path: PathBuf, metadata: std::fs::Metadata) {
             .with_cell(user.name().to_string_lossy())
             .with_cell(group.name().to_string_lossy())
             .with_cell(metadata.len())
-            .with_cell(last_mod_time.format("%d/%m/%Y %T"))
+            .with_cell(last_mod_time.format("%b %d %y %H:%M"))
             .with_cell(file_path.display()),
     );
     print!("{}", table);
