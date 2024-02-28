@@ -54,7 +54,7 @@ pub fn execute(input: Input) {
 fn find_files(paths: Vec<PathBuf>) -> Vec<PathBuf> {
     let access_closure = |path: PathBuf| {
         if path.metadata().is_err() {
-            eprintln!("lr: cannot find '{}':", path.display());
+            eprintln!("lr: cannot access '{}': {}", path.display(), path.metadata().err().unwrap());
             None
         } else {
             Some(path)
@@ -73,6 +73,8 @@ fn find_files(paths: Vec<PathBuf>) -> Vec<PathBuf> {
                 result.push(path)
             }
         });
+
+    result.sort();
 
     result
 }
