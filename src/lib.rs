@@ -6,7 +6,7 @@ use users::{get_group_by_gid, get_user_by_uid};
 
 pub struct Input {
     paths: Vec<PathBuf>,
-    pub all: bool,
+    pub show_all: bool,
     pub long: bool,
 }
 
@@ -42,14 +42,14 @@ pub fn get_args() -> Input {
 
     Input {
         paths,
-        all: matches.get_one::<bool>("all").unwrap().to_owned(),
+        show_all: matches.get_one::<bool>("all").unwrap().to_owned(),
         long: matches.get_one::<bool>("long").unwrap().to_owned(),
     }
 }
 
 pub fn execute(input: Input) {
     let files = find_files(input.paths);
-    format_output(files);
+    format_output(files, input.long, input.show_all);
 }
 
 fn find_files(paths: Vec<PathBuf>) -> Vec<PathBuf> {
@@ -105,9 +105,7 @@ fn read_contents(dir: PathBuf) -> Vec<PathBuf> {
         .collect::<Vec<PathBuf>>()
 }
 
-fn format_output(files: Vec<PathBuf>) {
-    let mut table = Table::new("{:>}{:>} {:<} {:<} {:<} {:<} {:<} {:<}");
-
+fn format_output(files: Vec<PathBuf>, long_option: bool, show_all: bool) {
     let extract_metadata = |file: PathBuf| match fs::metadata(&file) {
         Err(e) => {
             eprintln!(
@@ -123,24 +121,36 @@ fn format_output(files: Vec<PathBuf>) {
     files
         .into_iter()
         .filter_map(extract_metadata)
+        .filter(|(file_path, _metadata)| {
+            !file_path.to_string_lossy().starts_with("./.") || show_all
+        })
         .for_each(|(file_path, metadata)| {
-            let file_type = if metadata.is_dir() { 'd' } else { '-' };
-            let user = get_user_by_uid(metadata.uid()).unwrap();
-            let group = get_group_by_gid(metadata.gid()).unwrap();
-            let last_mod_time: DateTime<Local> = metadata.modified().unwrap().into();
-
-            table.add_row(
-                Row::new()
-                    .with_cell(file_type)
-                    .with_cell(metadata.mode())
-                    .with_cell(metadata.nlink())
-                    .with_cell(user.name().to_string_lossy())
-                    .with_cell(group.name().to_string_lossy())
-                    .with_cell(metadata.len())
-                    .with_cell(last_mod_time.format("%d/%m/%Y %T"))
-                    .with_cell(file_path.display()),
-            );
+            if long_option {
+                output_as_table(file_path, metadata);
+            } else {
+                println!("{}", file_path.display());
+            }
         });
+}
 
-    println!("{}", table);
+fn output_as_table(file_path: PathBuf, metadata: std::fs::Metadata) {
+    let mut table = Table::new("{:>}{:>} {:<} {:<} {:<} {:<} {:<} {:<}");
+
+    let file_type = if metadata.is_dir() { 'd' } else { '-' };
+    let user = get_user_by_uid(metadata.uid()).unwrap();
+    let group = get_group_by_gid(metadata.gid()).unwrap();
+    let last_mod_time: DateTime<Local> = metadata.modified().unwrap().into();
+
+    table.add_row(
+        Row::new()
+            .with_cell(file_type)
+            .with_cell(metadata.mode())
+            .with_cell(metadata.nlink())
+            .with_cell(user.name().to_string_lossy())
+            .with_cell(group.name().to_string_lossy())
+            .with_cell(metadata.len())
+            .with_cell(last_mod_time.format("%d/%m/%Y %T"))
+            .with_cell(file_path.display()),
+    );
+    print!("{}", table);
 }
