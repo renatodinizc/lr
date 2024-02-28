@@ -1,6 +1,7 @@
-use lr::get_args;
+use lr::{execute, get_args};
 
 fn main() {
-    println!("Hello, world!");
     let input = get_args();
+
+    execute(input);
 }
