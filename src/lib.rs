@@ -1,7 +1,9 @@
+use chrono::{offset::Local, DateTime};
 use clap::{command, Arg, ArgAction};
-use std::{fmt::Debug, fs, path::PathBuf};
+use std::{fs, os::unix::fs::MetadataExt, path::PathBuf};
+use tabular::{Row, Table};
+use users::{get_group_by_gid, get_user_by_uid};
 
-#[derive(Debug)]
 pub struct Input {
     paths: Vec<PathBuf>,
     pub all: bool,
@@ -47,14 +49,17 @@ pub fn get_args() -> Input {
 
 pub fn execute(input: Input) {
     let files = find_files(input.paths);
-
-    println!("{:#?}", files);
+    format_output(files);
 }
 
 fn find_files(paths: Vec<PathBuf>) -> Vec<PathBuf> {
     let access_closure = |path: PathBuf| {
         if path.metadata().is_err() {
-            eprintln!("lr: cannot access '{}': {}", path.display(), path.metadata().err().unwrap());
+            eprintln!(
+                "lr: cannot access '{}': {}",
+                path.display(),
+                path.metadata().err().unwrap()
+            );
             None
         } else {
             Some(path)
@@ -98,4 +103,44 @@ fn read_contents(dir: PathBuf) -> Vec<PathBuf> {
             Err(_e) => None,
         })
         .collect::<Vec<PathBuf>>()
+}
+
+fn format_output(files: Vec<PathBuf>) {
+    let mut table = Table::new("{:>}{:>} {:<} {:<} {:<} {:<} {:<} {:<}");
+
+    let extract_metadata = |file: PathBuf| match fs::metadata(&file) {
+        Err(e) => {
+            eprintln!(
+                "lr: cannot access file's metadata '{}': {}",
+                file.display(),
+                e.kind()
+            );
+            None
+        }
+        Ok(metadata) => Some((file, metadata)),
+    };
+
+    files
+        .into_iter()
+        .filter_map(extract_metadata)
+        .for_each(|(file_path, metadata)| {
+            let file_type = if metadata.is_dir() { 'd' } else { '-' };
+            let user = get_user_by_uid(metadata.uid()).unwrap();
+            let group = get_group_by_gid(metadata.gid()).unwrap();
+            let last_mod_time: DateTime<Local> = metadata.modified().unwrap().into();
+
+            table.add_row(
+                Row::new()
+                    .with_cell(file_type)
+                    .with_cell(metadata.mode())
+                    .with_cell(metadata.nlink())
+                    .with_cell(user.name().to_string_lossy())
+                    .with_cell(group.name().to_string_lossy())
+                    .with_cell(metadata.len())
+                    .with_cell(last_mod_time.format("%d/%m/%Y %T"))
+                    .with_cell(file_path.display()),
+            );
+        });
+
+    println!("{}", table);
 }
