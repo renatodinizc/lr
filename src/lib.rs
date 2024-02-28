@@ -3,7 +3,7 @@ mod owner;
 use chrono::{offset::Local, DateTime};
 use clap::{command, Arg, ArgAction};
 use owner::format_mode;
-use std::{fs, os::unix::fs::MetadataExt, path::PathBuf};
+use std::{fs, fs::Metadata, os::unix::fs::MetadataExt, path::PathBuf};
 use tabular::{Row, Table};
 use users::{get_group_by_gid, get_user_by_uid};
 
@@ -121,22 +121,33 @@ fn format_output(files: Vec<PathBuf>, long_option: bool, show_all: bool) {
         Ok(metadata) => Some((file, metadata)),
     };
 
+    let hidden_files =
+        |object: &(PathBuf, Metadata)| !object.0.to_string_lossy().starts_with("./.") || show_all;
+
+    let strip_dir_rel_position = |object: (PathBuf, Metadata)| {
+        (
+            object
+                .0
+                .to_string_lossy()
+                .strip_prefix("./")
+                .unwrap()
+                .to_owned(),
+            object.1,
+        )
+    };
+
     files
         .into_iter()
         .filter_map(extract_metadata)
-        .filter(|(file_path, _metadata)| {
-            !file_path.to_string_lossy().starts_with("./.") || show_all
-        })
-        .for_each(|(file_path, metadata)| {
-            if long_option {
-                output_as_table(file_path, metadata);
-            } else {
-                print!("{}  ", file_path.display());
-            }
+        .filter(hidden_files)
+        .map(strip_dir_rel_position)
+        .for_each(|(file_path, metadata)| match long_option {
+            true => output_as_table(file_path, metadata),
+            false => print!("{}  ", file_path),
         });
 }
 
-fn output_as_table(file_path: PathBuf, metadata: std::fs::Metadata) {
+fn output_as_table(file_path: String, metadata: Metadata) {
     let mut table = Table::new("{:>}{:>} {:>} {:>} {:>} {:>} {:>} {:>}");
 
     let file_type = if metadata.is_dir() { 'd' } else { '-' };
@@ -153,7 +164,7 @@ fn output_as_table(file_path: PathBuf, metadata: std::fs::Metadata) {
             .with_cell(group.name().to_string_lossy())
             .with_cell(metadata.len())
             .with_cell(last_mod_time.format("%b %d %y %H:%M"))
-            .with_cell(file_path.display()),
+            .with_cell(file_path),
     );
     print!("{}", table);
 }
