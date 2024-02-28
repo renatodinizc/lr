@@ -1,5 +1,8 @@
+mod owner;
+
 use chrono::{offset::Local, DateTime};
 use clap::{command, Arg, ArgAction};
+use owner::format_mode;
 use std::{fs, os::unix::fs::MetadataExt, path::PathBuf};
 use tabular::{Row, Table};
 use users::{get_group_by_gid, get_user_by_uid};
@@ -144,7 +147,7 @@ fn output_as_table(file_path: PathBuf, metadata: std::fs::Metadata) {
     table.add_row(
         Row::new()
             .with_cell(file_type)
-            .with_cell(metadata.mode())
+            .with_cell(format_mode(metadata.mode()))
             .with_cell(metadata.nlink())
             .with_cell(user.name().to_string_lossy())
             .with_cell(group.name().to_string_lossy())
