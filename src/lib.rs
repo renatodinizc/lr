@@ -125,26 +125,33 @@ fn format_output(files: Vec<PathBuf>, long_option: bool, show_all: bool) {
         Ok(metadata) => Some((file, metadata)),
     };
 
-    let hidden_files =
-        |object: &(PathBuf, Metadata)| !object.0.to_string_lossy().starts_with("./.") || show_all;
-
     let strip_dir_rel_position = |object: (PathBuf, Metadata)| {
-        (
-            object
-                .0
-                .to_string_lossy()
-                .strip_prefix("./")
-                .unwrap()
-                .to_owned(),
-            object.1,
-        )
+        let prefix_path_str = object
+            .0
+            .parent()
+            .map(|p| p.to_string_lossy().into_owned() + "/");
+
+        let path_str = object.0.to_string_lossy();
+
+        let stripped_path = if let Some(prefix) = prefix_path_str {
+            path_str
+                .strip_prefix(&prefix)
+                .unwrap_or(&path_str)
+                .to_owned()
+        } else {
+            path_str.into_owned()
+        };
+
+        (stripped_path, object.1)
     };
+
+    let hidden_files = |object: &(String, Metadata)| !object.0.starts_with('.') || show_all;
 
     files
         .into_iter()
         .filter_map(extract_metadata)
-        .filter(hidden_files)
         .map(strip_dir_rel_position)
+        .filter(hidden_files)
         .for_each(|(file_path, metadata)| match long_option {
             true => output_as_table(file_path, metadata, long_option),
             false => {
