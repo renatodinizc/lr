@@ -3,8 +3,12 @@ mod owner;
 use chrono::{offset::Local, DateTime};
 use clap::{command, Arg, ArgAction};
 use owner::format_mode;
-use std::{fs, fs::Metadata, os::unix::fs::MetadataExt, path::PathBuf};
-use tabular::{Row, Table};
+use std::{
+    fs::{self, Metadata},
+    os::unix::fs::MetadataExt,
+    path::PathBuf,
+};
+use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 use users::{get_group_by_gid, get_user_by_uid};
 
 pub struct Input {
@@ -142,29 +146,62 @@ fn format_output(files: Vec<PathBuf>, long_option: bool, show_all: bool) {
         .filter(hidden_files)
         .map(strip_dir_rel_position)
         .for_each(|(file_path, metadata)| match long_option {
-            true => output_as_table(file_path, metadata),
-            false => print!("{}  ", file_path),
+            true => output_as_table(file_path, metadata, long_option),
+            false => {
+                if metadata.is_dir() {
+                    print_colored_dir_path(file_path, long_option)
+                } else {
+                    print!("{}  ", file_path)
+                }
+            }
         });
 }
 
-fn output_as_table(file_path: String, metadata: Metadata) {
-    let mut table = Table::new("{:>}{:>} {:>} {:>} {:>} {:>} {:>} {:>}");
-
+fn output_as_table(file_path: String, metadata: Metadata, long_option: bool) {
     let file_type = if metadata.is_dir() { 'd' } else { '-' };
     let user = get_user_by_uid(metadata.uid()).unwrap();
     let group = get_group_by_gid(metadata.gid()).unwrap();
     let last_mod_time: DateTime<Local> = metadata.modified().unwrap().into();
 
-    table.add_row(
-        Row::new()
-            .with_cell(file_type)
-            .with_cell(format_mode(metadata.mode()))
-            .with_cell(metadata.nlink())
-            .with_cell(user.name().to_string_lossy())
-            .with_cell(group.name().to_string_lossy())
-            .with_cell(metadata.len())
-            .with_cell(last_mod_time.format("%b %d %y %H:%M"))
-            .with_cell(file_path),
-    );
-    print!("{}", table);
+    if metadata.is_dir() {
+        print!(
+            "{}{} {} {} {} {} {} ",
+            file_type,
+            format_mode(metadata.mode()),
+            metadata.nlink(),
+            user.name().to_string_lossy(),
+            group.name().to_string_lossy(),
+            metadata.len(),
+            last_mod_time.format("%b %d %y %H:%M"),
+        );
+        print_colored_dir_path(file_path, long_option);
+    } else {
+        println!(
+            "{}{} {} {} {} {} {} {}",
+            file_type,
+            format_mode(metadata.mode()),
+            metadata.nlink(),
+            user.name().to_string_lossy(),
+            group.name().to_string_lossy(),
+            metadata.len(),
+            last_mod_time.format("%b %d %y %H:%M"),
+            file_path
+        );
+    }
+}
+
+fn print_colored_dir_path(dir_name: String, long_option: bool) {
+    let stdout = StandardStream::stdout(ColorChoice::Always);
+    let mut stdout_lock = stdout.lock();
+
+    stdout_lock
+        .set_color(ColorSpec::new().set_fg(Some(Color::Blue)).set_bold(true))
+        .unwrap();
+
+    if long_option {
+        println!("{}", dir_name);
+    } else {
+        print!("{}  ", dir_name);
+    }
+    stdout_lock.reset().unwrap();
 }
