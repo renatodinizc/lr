@@ -1,7 +1,5 @@
-use lr::{execute, get_args};
+use lr::execute;
 
 fn main() {
-    let input = get_args();
-
-    execute(input);
+    execute()
 }

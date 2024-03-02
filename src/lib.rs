@@ -17,7 +17,14 @@ pub struct Input {
     pub long: bool,
 }
 
-pub fn get_args() -> Input {
+pub fn execute() {
+    let input = get_args();
+
+    let files = find_files(input.paths);
+    format_output(files, input.long, input.show_all);
+}
+
+fn get_args() -> Input {
     let matches = command!()
         .arg(
             Arg::new("all")
@@ -52,11 +59,6 @@ pub fn get_args() -> Input {
         show_all: matches.get_one::<bool>("all").unwrap().to_owned(),
         long: matches.get_one::<bool>("long").unwrap().to_owned(),
     }
-}
-
-pub fn execute(input: Input) {
-    let files = find_files(input.paths);
-    format_output(files, input.long, input.show_all);
 }
 
 fn find_files(paths: Vec<PathBuf>) -> Vec<PathBuf> {
